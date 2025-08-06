@@ -1,14 +1,7 @@
 import * as React from "react";
-import Header from "./Header";
-import HeroList, { HeroListItem } from "./HeroList";
-import TextInsertion from "./TextInsertion";
 import { makeStyles } from "@fluentui/react-components";
-import { Ribbon24Regular, LockOpen24Regular, DesignIdeas24Regular } from "@fluentui/react-icons";
-import { insertText } from "../taskpane";
-
-interface AppProps {
-  title: string;
-}
+import { suggestionsArraySchema } from "../utils/jsonSchema";
+import { getRangeForOffsets } from "../utils/segmentMapping";
 
 const useStyles = makeStyles({
   root: {
@@ -16,30 +9,178 @@ const useStyles = makeStyles({
   },
 });
 
-const App: React.FC<AppProps> = (props: AppProps) => {
+import { verifyMapping } from "../utils/segmentMapping";
+
+const App: React.FC = () => {
   const styles = useStyles();
-  // The list items are static and won't change at runtime,
-  // so this should be an ordinary const, not a part of state.
-  const listItems: HeroListItem[] = [
-    {
-      icon: <Ribbon24Regular />,
-      primaryText: "Achieve more with Office integration",
-    },
-    {
-      icon: <LockOpen24Regular />,
-      primaryText: "Unlock features and functionality",
-    },
-    {
-      icon: <DesignIdeas24Regular />,
-      primaryText: "Create and visualize like a pro",
-    },
-  ];
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<boolean>(false);
+  const [suggestions, setSuggestions] = React.useState<any[]>([]);
+  const [verifyResults, setVerifyResults] = React.useState<any[]>([]);
+
+  const normalizeSuggestion = (s: any) => {
+    if (typeof s.text === "string") {
+      console.log(
+        `Original: '${s.text}'`,
+        Array.from(s.text).map((c: string) => c.charCodeAt(0))
+      );
+      const normalizedText = s.text.normalize("NFC");
+      console.log(
+        `Normalized: '${normalizedText}'`,
+        Array.from(normalizedText).map((c: string) => c.charCodeAt(0))
+      );
+    }
+    return {
+      ...s,
+      id: typeof s.id === "string" ? s.id.normalize("NFC") : s.id,
+      text: typeof s.text === "string" ? s.text.normalize("NFC") : s.text,
+      // Add normalization for other string fields if needed
+    };
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    file.text().then(text => {
+      try {
+        const json = JSON.parse(text);
+        const result = suggestionsArraySchema.safeParse(json);
+        if (!result.success) {
+          setError("Invalid JSON: " + result.error.message);
+          setSuccess(false);
+          return;
+        }
+        // Normalize all string fields in each suggestion
+        const normalized = result.data.map(normalizeSuggestion);
+        setSuggestions(normalized);
+        setError(null);
+        setSuccess(true);
+        console.log(normalized);
+      } catch (e: any) {
+        setError("Failed to parse file: " + e.message);
+        setSuccess(false);
+      }
+    });
+  };
+
+  // Extract and highlight the segment for the first suggestion
+  const handleExtractSegment = async () => {
+    if (!suggestions.length) {
+      setError("No suggestions loaded.");
+      setSuccess(false);
+      return;
+    }
+    const { start, end } = suggestions[0];
+    try {
+      await Word.run(async context => {
+        const range = await getRangeForOffsets(context, start, end);
+        if (range) {
+          range.font.highlightColor = '#FFFF00'; // yellow highlight
+          context.sync();
+          setError(null);
+          setSuccess(true);
+        } else {
+          setError("Could not find segment in document (may span multiple paragraphs or offsets out of range).");
+          setSuccess(false);
+        }
+      });
+    } catch (e: any) {
+      setError("Error extracting segment: " + e.message);
+      setSuccess(false);
+    }
+  };
+
+  // Extract and highlight all segments
+  const handleExtractAllSegments = async () => {
+    if (!suggestions.length) {
+      setError("No suggestions loaded.");
+      setSuccess(false);
+      return;
+    }
+    try {
+      await Word.run(async context => {
+        let anySuccess = false;
+        for (const s of suggestions) {
+          const range = await getRangeForOffsets(context, s.start, s.end);
+          if (range) anySuccess = true;
+        }
+        await context.sync();
+        if (anySuccess) {
+          setError(null);
+          setSuccess(true);
+        } else {
+          setError("No segments could be extracted/highlighted.");
+          setSuccess(false);
+        }
+      });
+    } catch (e: any) {
+      setError("Error extracting segments: " + e.message);
+      setSuccess(false);
+    }
+  };
+
+  // Verify all mappings
+  const handleVerifyAll = async () => {
+    if (!suggestions.length) {
+      setVerifyResults([]);
+      setError("No suggestions loaded.");
+      setSuccess(false);
+      return;
+    }
+    try {
+      await Word.run(async context => {
+        const results = [];
+        for (const s of suggestions) {
+          const res = await verifyMapping(context, s.start, s.end, s.text);
+          results.push({ id: s.id, ...res });
+        }
+        setVerifyResults(results);
+        setError(null);
+      });
+    } catch (e: any) {
+      setError("Error verifying mappings: " + e.message);
+    }
+  };
 
   return (
-    <div className={styles.root}>
-      <Header logo="assets/logo-filled.png" title={props.title} message="Welcome" />
-      <HeroList message="Discover what this add-in can do for you today!" items={listItems} />
-      <TextInsertion insertText={insertText} />
+    <div className={styles.root} style={{ padding: 24 }}>
+      <h2>Diff pipeline</h2>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: "none" }}
+        onChange={handleFileChange}
+      />
+      <button onClick={handleButtonClick}>Load JSON</button>
+      <button onClick={handleExtractSegment}>Extract Segment</button>
+      <button onClick={handleExtractAllSegments}>Extract All Segments</button>
+      <button onClick={handleVerifyAll}>Verify All Mappings</button>
+      {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
+      {success && <div style={{ color: "green", marginTop: 8 }}>JSON loaded and validated successfully!</div>}
+      {verifyResults.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <h4>Mapping Verification Results:</h4>
+          <ul>
+            {verifyResults.map(r => (
+              <li key={r.id} style={{ color: r.matches ? 'green' : 'red' }}>
+                <b>{r.id}:</b> {r.matches ? 'MATCH' : 'MISMATCH'}
+                { !r.matches && (
+                  <>
+                    <br />Extracted: <code>{r.extracted}</code><br />Expected: <code>{suggestions.find(s => s.id === r.id)?.text}</code>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
