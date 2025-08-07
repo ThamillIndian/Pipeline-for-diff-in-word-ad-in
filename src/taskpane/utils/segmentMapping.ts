@@ -1,10 +1,13 @@
 /**
  * Utilities for mapping character offsets to Word Ranges and extracting segments.
+ * Updated to work with document structure without newline handling.
  */
+
+import { buildWordCharacterOffsetDict, getRangeForCharacterOffsets, verifyCharacterMapping, CharacterOffsetMapping } from './documentMapping';
 
 /**
  * Build a mapping from character offsets to absolute positions in the Word document.
- * Returns an array of cumulative character offsets for each paragraph.
+ * Updated version without newline handling between paragraphs.
  */
 export async function buildCharOffsetDict(context: Word.RequestContext): Promise<{text: string, start: number, end: number, paragraph: Word.Paragraph, isLast: boolean}[]> {
   const paragraphs = context.document.body.paragraphs;
@@ -23,7 +26,8 @@ export async function buildCharOffsetDict(context: Word.RequestContext): Promise
       paragraph,
       isLast
     });
-    offset += len + (isLast ? 0 : 1); // add 1 for \n between paragraphs
+    // No newline handling - continuous character counting
+    offset += len;
   });
   return dict;
 }
@@ -35,7 +39,12 @@ export async function buildCharOffsetDict(context: Word.RequestContext): Promise
 
 /**
  * Verifies that the text extracted from the document for given offsets matches the JSON suggestion text.
- * Returns an object with the extracted text and whether it matches.
+ * Updated to work without newline handling between paragraphs.
+ */
+/**
+ * Verifies that the text extracted from the document for given offsets matches the expected edited text.
+ * Extracted: Current content in Word document
+ * Expected: What it should be changed to based on JSON's latest_edited_text
  */
 export async function verifyMapping(context: Word.RequestContext, start: number, end: number, expected: string) {
   const dict = await buildCharOffsetDict(context);
@@ -50,17 +59,50 @@ export async function verifyMapping(context: Word.RequestContext, start: number,
     // Special case: if this is the last paragraph in the range and end lands exactly at entry.end, include all
     if (end >= entry.end) e = entry.text.length;
     extracted += entry.text.slice(s, e);
-    // Add newline if this is not the last paragraph and next paragraph is within the range
-    if (!entry.isLast && end > entry.end && i < dict.length - 1 && start < dict[i + 1].end) {
-      extracted += "\n";
-    }
+    // No newline handling - continuous text extraction
   }
   const matches = extracted === expected;
+  
   console.log(`Extracted: '${extracted}' | Expected: '${expected}' | Match: ${matches}`);
-  return { extracted, matches };
+  return { extracted, expected, matches };
 }
 
+/**
+ * Get Word Range for character offsets using the new document mapping approach
+ */
 export async function getRangeForOffsets(context: Word.RequestContext, start: number, end: number): Promise<Word.Range | null> {
+  try {
+    // Use the new document mapping approach
+    const range = await getRangeForCharacterOffsets(context, start, end);
+    
+    if (range) {
+      // Apply highlighting
+      try {
+        range.font.highlightColor = '#FFD700';
+      } catch (error) {
+        console.warn('Could not apply highlighting:', error);
+        // Fallback to selection
+        try {
+          range.select();
+        } catch (selectError) {
+          console.warn('Could not select range:', selectError);
+        }
+      }
+    }
+    
+    return range;
+  } catch (error) {
+    console.error('Error in getRangeForOffsets:', error);
+    
+    // Fallback to legacy approach
+    return getLegacyRangeForOffsets(context, start, end);
+  }
+}
+
+/**
+ * Legacy implementation as fallback
+ */
+async function getLegacyRangeForOffsets(context: Word.RequestContext, start: number, end: number): Promise<Word.Range | null> {
   const dict = await buildCharOffsetDict(context);
   // Handle multi-paragraph segments
   const startParaIdx = dict.findIndex(entry => start >= entry.start && start < entry.end);
@@ -137,5 +179,4 @@ export async function getRangeForOffsets(context: Word.RequestContext, start: nu
     }
     return null;
   }
-  return null;
 }

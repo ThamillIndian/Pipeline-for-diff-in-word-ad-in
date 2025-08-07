@@ -1,0 +1,67 @@
+=== DEBUG: Diff Pipeline Test ===
+
+Document: Test Project KGL T&F - 2025-05-24 16:40
+Document ID: 157
+Paragraphs: 20
+Total Characters: 4626
+Complete text length: 4626 characters
+
+=== Paragraphs with Differences ===
+
+Paragraph 1 (ID: 36E7A870):
+  Original: "Dutch (Moroccan)"
+  Edited: "Dutch (Moroccan)"
+  Same: true
+
+Paragraph 2 (ID: 70359924):
+  Original: "23"
+  Edited: "22"
+  Same: false
+
+Paragraph 3 (ID: 5340ECB8):
+  Original: "Approach to Neuropsychological Assessment of Moroccan patients in the Netherlands"
+  Edited: "Approach to Neuropsychological Assessment of Moroccan patients in the Netherlands"
+  Same: true
+
+Paragraph 4 (ID: 7CC62562):
+  Original: "Özgül Uysal-Bozkir, Ph.D, Sanne Franzen, MSc., & Miriam Goudsmit, MSc."
+  Edited: "Özgül Uysal-Bozkir, Ph.D, Sanne Franzen, MSc., & Miriam Goudsmit, MSc."
+  Same: true
+
+Paragraph 5 (ID: 589518EF):
+  Original: "Abstract"
+  Edited: "Abstract"
+  Same: true
+
+=== Mappings for Paragraphs with Differences ===
+
+Difference 1:
+  Paragraph: 2
+  ID: 70359924
+  Offsets: 16-18
+  Original: "23"
+  Edited: "22"
+  Extracted: "23"
+  Match: ✅
+
+=== Testing Specific Character Range Extraction ===
+
+Range 0-16:
+  Expected: "Dutch (Moroccan)"
+  Extracted: "Dutch (Moroccan)"
+  Match: ✅
+
+Range 16-18:
+  Expected: "23"
+  Extracted: "23"
+  Match: ✅
+
+Range 18-99:
+  Expected: "Approach to Neuropsychological Assessment of Moroccan patients in the Netherlands"
+  Extracted: "Approach to Neuropsychological Assessment of Moroccan patients in the Netherlands"
+  Match: ✅
+
+Range 0-18:
+  Expected: "Dutch (Moroccan)23"
+  Extracted: "Dutch (Moroccan)23"
+  Match: ✅
