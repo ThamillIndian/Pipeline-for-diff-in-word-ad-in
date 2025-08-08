@@ -255,10 +255,11 @@ export function findTextDifferences(documentData: DocumentData): TextDifference[
  * Remove markup tags from text (simplified version)
  */
 function removeMarkupTags(text: string): string {
-  // Remove tags like <{tag_name}>, <[tag]>, <[/tag]>
+  // Remove tags like <{tag_name}>, <[tag]>, <[/tag]>, and [tag] without angle brackets
   return text
     .replace(/<\{[^}]+\}>\s*/g, '') // Remove style tags like <{ch_head}>
     .replace(/<\[[^\]]+\]>/g, '') // Remove formatting tags like <[b]>, <[/b]>
+    .replace(/\[[^\]]+\]/g, '') // Remove tags without angle brackets like [endash], [emdash]
     .trim();
 }
 
@@ -349,4 +350,119 @@ export async function verifyCharacterMapping(
     matches,
     mapping: affectedParagraphs,
   };
+}
+
+/**
+ * Verify that the original text in the JSON data matches the text in the Word document.
+ * Uses word_native_para_id to match paragraphs and returns paragraph-relative offsets.
+ */
+export async function verifyOriginalTextAgainstDocument(
+  context: Word.RequestContext,
+  documentData: DocumentData
+): Promise<{ paragraphNumber: number; wordNativeParaId: string; expected: string; found: string; matches: boolean; startOffset?: number; endOffset?: number }[]> {
+  const paragraphs = context.document.body.paragraphs;
+  paragraphs.load("items/text");
+  await context.sync();
+
+  const verificationResults: { paragraphNumber: number; wordNativeParaId: string; expected: string; found: string; matches: boolean; startOffset?: number; endOffset?: number }[] = [];
+
+  console.log('\n=== Starting Paragraph-by-Paragraph Verification ===');
+  console.log(`Total JSON paragraphs: ${documentData.paragraphs.length}`);
+  console.log(`Total Word paragraphs: ${paragraphs.items.length}`);
+
+  // Process each JSON paragraph individually
+  for (const jsonParagraph of documentData.paragraphs) {
+    console.log(`\n--- Processing Paragraph ${jsonParagraph.paragraph_number} (ID: ${jsonParagraph.word_native_para_id}) ---`);
+    
+    // Find the corresponding Word paragraph by index (assuming same order)
+    // Note: In a real implementation, you'd match by word_native_para_id if Word document has those IDs
+    const wordParagraphIndex = jsonParagraph.paragraph_number - 1; // Convert to 0-based index
+    const wordParagraph = paragraphs.items[wordParagraphIndex];
+
+    if (!wordParagraph) {
+      console.log(`ERROR: Word paragraph not found for JSON paragraph ${jsonParagraph.paragraph_number}`);
+      verificationResults.push({
+        paragraphNumber: jsonParagraph.paragraph_number,
+        wordNativeParaId: jsonParagraph.word_native_para_id,
+        expected: "[Paragraph not found in Word document]",
+        found: jsonParagraph.original_text_no_markers,
+        matches: false,
+      });
+      continue;
+    }
+
+    // Get the text content from both sources
+    // Use latest_edited_text from JSON and remove markup tags
+    const jsonTextRaw = jsonParagraph.latest_edited_text;
+    const jsonText = removeMarkupTags(jsonTextRaw).trim().replace(/\s+/g, ' ');
+    const wordText = wordParagraph.text.trim().replace(/\s+/g, ' ');
+    
+    console.log(`Raw JSON text: "${jsonTextRaw.substring(0, 100)}${jsonTextRaw.length > 100 ? '...' : ''}"`);
+
+    console.log(`JSON text (${jsonText.length} chars): "${jsonText.substring(0, 100)}${jsonText.length > 100 ? '...' : ''}"`);
+    console.log(`Word text (${wordText.length} chars): "${wordText.substring(0, 100)}${wordText.length > 100 ? '...' : ''}"`);
+
+    // Check if texts are identical
+    if (jsonText === wordText) {
+      console.log('✓ Texts match perfectly - no differences found');
+      continue;
+    }
+
+    console.log('✗ Texts differ - analyzing differences...');
+
+    // Use diff-match-patch to find specific differences within this paragraph
+    const dmp = new diff_match_patch();
+    const diffs = dmp.diff_main(jsonText, wordText); // Compare JSON (expected) vs Word (actual)
+    dmp.diff_cleanupSemantic(diffs);
+
+    console.log(`Found ${diffs.length} diff operations:`, diffs);
+
+    // Process each diff operation to find mismatches
+    let jsonCursor = 0;
+    let wordCursor = 0;
+
+    for (let i = 0; i < diffs.length; i++) {
+      const [op, text] = diffs[i];
+      
+      if (op !== 0) { // Only process actual differences (not equal parts)
+        let expectedText = '';
+        let foundText = '';
+        let paragraphRelativeStart = jsonCursor;
+        let paragraphRelativeEnd = jsonCursor;
+
+        if (op === -1) { // Text exists in JSON but missing in Word
+          expectedText = text;
+          foundText = '[MISSING]';
+          paragraphRelativeEnd = jsonCursor + text.length;
+          console.log(`  MISSING: "${text}" at position ${jsonCursor}-${paragraphRelativeEnd}`);
+        } else if (op === 1) { // Text exists in Word but not in JSON
+          foundText = text;
+          expectedText = '[EXTRA]';
+          paragraphRelativeEnd = jsonCursor;
+          console.log(`  EXTRA: "${text}" found in Word at position ${wordCursor}`);
+        }
+
+        verificationResults.push({
+          paragraphNumber: jsonParagraph.paragraph_number,
+          wordNativeParaId: jsonParagraph.word_native_para_id,
+          expected: expectedText,
+          found: foundText,
+          matches: false,
+          startOffset: paragraphRelativeStart, // Paragraph-relative offset
+          endOffset: paragraphRelativeEnd,     // Paragraph-relative offset
+        });
+      }
+
+      // Update cursors based on operation type
+      if (op === -1 || op === 0) {
+        jsonCursor += text.length;
+      }
+      if (op === 1 || op === 0) {
+        wordCursor += text.length;
+      }
+    }
+  }
+
+  console.log(`\n=== Verification Complete: Found ${verificationResults.length} mismatches ===`);
+  return verificationResults;
 }

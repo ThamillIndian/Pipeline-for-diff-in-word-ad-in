@@ -18,7 +18,7 @@
       "word_native_para_id": "70359924",
       "original_text_no_markers": "23",
       "input_with_markers": "<[b]>23<[/b]>",
-      "latest_edited_text": "<{ch_head}> <[b]>22<[/b]>"
+      "latest_edited_text": "<{ch_head}> <[b]>23<[/b]>"
     },
     {
       "paragraph_number": 3,
@@ -122,8 +122,8 @@
       "paragraph_number": 17,
       "word_native_para_id": "639EE688",
       "original_text_no_markers": "(1)\tEl Barda\u00ef, Omar. \"Les Marocains r\u00e9sidant aux Pays-Bas: caract\u00e9ristiques d\u00e9mographiques et sociales\", in Kabbaj, Khadija (ed.), Marocains de l\u2019Ext\u00e9rieur, Rabat: Fondation Hassan II pour les Marocains R\u00e9sidant \u00e0 l\u2019Etranger, July 2003, pp. 322\u2013373, ISBN 9954-400-19-2",
-      "input_with_markers": "(1)\tEl Barda\u00ef, Omar. <[quot_right]>Les Marocains r\u00e9sidant aux Pays-Bas: caract\u00e9ristiques d\u00e9mographiques et sociales<[quot_right]>, in Kabbaj, Khadija (ed.), Marocains de l\u2019Ext\u00e9rieur, Rabat: Fondation Hassan II pour les Marocains R\u00e9sidant \u00e0 l\u2019Etranger, July 2003, pp. 322<[endash]>373, ISBN 9954-400-19-2",
-      "latest_edited_text": "<{reference}> (1)\tEl Barda\u00ef, Omar. <[quot_right]>Les Marocains r\u00e9sidant aux Pays-Bas: caract\u00e9ristiques d\u00e9mographiques et sociales<[quot_right]>, in Kabbaj, Khadija (ed.), Marocains de l\u2019Ext\u00e9rieur, Rabat: Fondation Hassan II pour les Marocains R\u00e9sidant \u00e0 l\u2019Etranger, July 2003, pp. 322<[endash]>373, ISBN 9954-400-19-2"
+      "input_with_markers": "(1)\tEl Barda\u00ef, Omar. <[quot_right]>Les Marocains r\u00e9sidant aux Pays-Bas: caract\u00e9ristiques d\u00e9mographiques et sociales<[quot_right]>, in Kabbaj, Khadija (ed.), Marocains de l\u2019Ext\u00e9rieur, Rabat: Fondation Hassan II pour les Marocains R\u00e9sidant \u00e0 l\u2019Etranger, July 2003, pp. 322-373, ISBN 9954-400-19-2",
+      "latest_edited_text": "<{reference}> (1)\tEl Barda\u00ef, Omar. <[quot_right]>Les Marocains r\u00e9sidant aux Pays-Bas: caract\u00e9ristiques d\u00e9mographiques et sociales<[quot_right]>, in Kabbaj, Khadija (ed.), Marocains de l\u2019Ext\u00e9rieur, Rabat: Fondation Hassan II pour les Marocains R\u00e9sidant \u00e0 l\u2019Etranger, July 2003, pp. 322-373, ISBN 9954-400-19-2"
     },
     {
       "paragraph_number": 18,
@@ -142,9 +142,9 @@
     {
       "paragraph_number": 20,
       "word_native_para_id": "1665E7B4",
-      "original_text_no_markers": "(4)\tCrul M, Doomernik J. The Turkish and Moroccan Second Generation in the Netherlands: Divergent Trends between and Polarization within the Two Groups. The International Migration Review 2003;37(4):1039\u20131064.",
-      "input_with_markers": "(4)\tCrul M, Doomernik J. The Turkish and Moroccan Second Generation in the Netherlands: Divergent Trends between and Polarization within the Two Groups. The International Migration Review 2003;37(4):1039<[endash]>1064.",
-      "latest_edited_text": "<{reference}> (4)\tCrul M, Doomernik J. The Turkish and Moroccan Second Generation in the Netherlands: Divergent Trends between and Polarization within the Two Groups. The International Migration Review 2003;37(4):1039<[endash]>1064."
+      "original_text_no_markers": "(4)\tCrul M, Doomernik J. The Turkish and Moroccan Second Generation in the Netherlands: Divergent Trends between and Polarization within the Two Groups. The International Migration Review 2003;37(4):1039-1064.",
+      "input_with_markers": "(4)\tCrul M, Doomernik J. The Turkish and Moroccan Second Generation in the Netherlands: Divergent Trends between and Polarization within the Two Groups. The International Migration Review 2003;37(4):1039-1064.",
+      "latest_edited_text": "<{reference}> (4)\tCrul M, Doomernik J. The Turkish and Moroccan Second Generation in the Netherlands: Divergent Trends between and Polarization within the Two Groups. The International Migration Review 2003;37(4):1039-1064."
     }
   ]
 }
