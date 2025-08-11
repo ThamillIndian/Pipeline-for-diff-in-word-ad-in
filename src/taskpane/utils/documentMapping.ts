@@ -47,14 +47,14 @@ export interface CorrectionObject {
   diffText: string;            // The specific text that changed
   suggestion: string;          // Human-readable suggestion like "apple (remove l)"
   actionDescription: string;   // Description of the action like "remove l", "add s", "change to 'apple'"
-  errorType: 'Missing' | 'Extra' | 'Modified'; // Grammarly-style error categorization
+  errorType: 'Missing' | 'Extra' | 'Modified'; // Error categorization for text differences
 }
 
 /**
- * Generate Grammarly-style suggestion text for a correction
+ * Generate suggestion text for a correction
  * Provides clear, actionable feedback with context
  */
-function generateGrammarlyStyleSuggestion(
+function generateCorrectionSuggestion(
   errorType: 'Missing' | 'Extra' | 'Modified',
   diffText: string,
   wordText: string,
@@ -100,7 +100,7 @@ function generateGrammarlyStyleSuggestion(
  * Generate human-readable suggestion text for a correction (legacy function)
  * Focus on the specific changed part, not the entire paragraph
  */
-function generateCorrectionSuggestion(
+function generateLegacyCorrectionSuggestion(
   originalText: string,
   _correctedText: string,
   changeType: 'addition' | 'deletion' | 'modification',

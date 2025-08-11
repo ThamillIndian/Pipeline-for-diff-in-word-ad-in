@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Test Grammarly-Style Diff System</title>
+    <title>Test Character-Level Diff System</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .test-case { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
@@ -16,7 +16,7 @@
     </style>
 </head>
 <body>
-    <h1>Testing Grammarly-Style Character-Level Diff System</h1>
+    <h1>Testing Character-Level Diff System</h1>
     <div id="results"></div>
 
     <script>
@@ -151,7 +151,7 @@
         if (totalCorrections > 0) {
             resultsHtml += `<p class="success">✅ System Status: WORKING</p>`;
             resultsHtml += `<p>Total corrections detected across all test cases: <strong>${totalCorrections}</strong></p>`;
-            resultsHtml += `<p>The Grammarly-style character-level diff system is functioning and detecting differences between Word text and JSON corrected text.</p>`;
+            resultsHtml += `<p>The character-level diff system is functioning and detecting differences between Word text and JSON corrected text.</p>`;
         } else {
             resultsHtml += `<p class="error">❌ System Status: NOT WORKING</p>`;
             resultsHtml += `<p>No corrections detected in any test case. The diff system may have issues.</p>`;
