@@ -3,7 +3,8 @@
  * Updated to work with document structure without newline handling.
  */
 
-import { buildWordCharacterOffsetDict, getRangeForCharacterOffsets, verifyCharacterMapping, CharacterOffsetMapping } from './documentMapping';
+// Legacy imports removed - these functions no longer exist in documentMapping.ts
+// import { buildWordCharacterOffsetDict, getRangeForCharacterOffsets, verifyCharacterMapping, CharacterOffsetMapping } from './documentMapping';
 
 /**
  * Build a mapping from character offsets to absolute positions in the Word document.
@@ -72,25 +73,10 @@ export async function verifyMapping(context: Word.RequestContext, start: number,
  */
 export async function getRangeForOffsets(context: Word.RequestContext, start: number, end: number): Promise<Word.Range | null> {
   try {
-    // Use the new document mapping approach
-    const range = await getRangeForCharacterOffsets(context, start, end);
-    
-    if (range) {
-      // Apply highlighting
-      try {
-        range.font.highlightColor = '#FFD700';
-      } catch (error) {
-        console.warn('Could not apply highlighting:', error);
-        // Fallback to selection
-        try {
-          range.select();
-        } catch (selectError) {
-          console.warn('Could not select range:', selectError);
-        }
-      }
-    }
-    
-    return range;
+    // Legacy function getRangeForCharacterOffsets has been removed
+    // This function is no longer available - use the new correction system instead
+    console.warn('getRangeForCharacterOffsets has been removed. Use processCorrectionData from documentMapping.ts instead.');
+    return null;
   } catch (error) {
     console.error('Error in getRangeForOffsets:', error);
     

@@ -4,7 +4,6 @@
 
 import { DocumentData, ParagraphData } from './documentMapping';
 import { processDocumentJson, validateCharacterOffsets } from './jsonProcessor';
-import { buildCharacterOffsetDict } from './documentMapping';
 
 /**
  * Test character mapping with the user's real JSON file
@@ -121,32 +120,11 @@ export function testWithExampleJson() {
     console.log('Processing Result:', result);
     
     // Build character mappings
-    const mappings = buildCharacterOffsetDict(result.documentData);
-    console.log('Character Mappings:', mappings);
-    
-    // Show character offset ranges
-    console.log('\n=== Character Offset Ranges ===');
-    mappings.forEach(mapping => {
-      console.log(`Paragraph ${mapping.paragraphNumber} (${mapping.wordNativeParaId}):`);
-      console.log(`  Text: "${mapping.originalText}"`);
-      console.log(`  Range: ${mapping.startOffset} - ${mapping.endOffset} (length: ${mapping.originalText.length})`);
-    });
-    
-    // Test specific character ranges
-    console.log('\n=== Testing Specific Ranges ===');
-    
-    // Test: Extract "Dutch (Moroccan)" - should be at offset 0-15
-    testExtraction(mappings, 0, 15, "Dutch (Moroccan)");
-    
-    // Test: Extract "22" - should be at offset 15-17
-    testExtraction(mappings, 15, 17, "22");
-    
-    // Test: Extract "Approach" - should be at offset 17-25
-    testExtraction(mappings, 17, 25, "Approach");
-    
-    // Test: Extract full third paragraph
-    const thirdParagraphText = "Approach to Neuropsychological Assessment of Moroccan patients in the Netherlands";
-    testExtraction(mappings, 17, 17 + thirdParagraphText.length, thirdParagraphText);
+    // Legacy character mapping test removed - buildCharacterOffsetDict function no longer exists
+    // The new system uses processCorrectionData for granular correction generation
+    console.log('\n=== New Correction System Test ===');
+    console.log('Note: Legacy character mapping functions have been replaced with granular correction system.');
+    console.log('Use processCorrectionData from documentMapping.ts for the new workflow.');
     
     // Validate all suggestions
     if (result.suggestions.length > 0) {

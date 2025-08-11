@@ -1,0 +1,31 @@
+{
+  "document_id": 157,
+  "document_title": "Test Project KGL T&F - 2025-05-24 16:40",
+  "completed_stages": [
+    "preworkout",
+    "language-edit"
+  ],
+  "paragraphs": [
+    {
+      "paragraph_number": 1,
+      "word_native_para_id": "36E7A870",
+      "original_text_no_markers": "Dutch (Moroccan)",
+      "input_with_markers": "<[i]><[b]>Dutch (Moroccan)<[/b]><[/i]>",
+      "latest_edited_text": "<{ch_head}> <[i]><[b]>Dutch (Moroccan)<[/b]><[/i]>"
+    },
+    {
+      "paragraph_number": 10,
+      "word_native_para_id": "4BF2F25D",
+      "original_text_no_markers": "People from Morocco in the Netherlands are generally referred to as Moroccans or Moroccan Dutch etc. However, people from Morocco may prefer to be referred to in other ways. For instance, people from the Berber minority may choose to be referred to as Amazigh or Moroccan Berber. Throughout the chapter, we will use Moroccan to refer to people originating from Morocco's geographical area and only make ethnic distinctions when relevant.",
+      "input_with_markers": "People from Morocco in the Netherlands are generally referred to as Moroccans or Moroccan Dutch etc. However, people from Morocco may prefer to be referred to in other ways. For instance, people from the Berber<[sup]><[/sup]> minority may choose to be referred to as Amazigh or Moroccan Berber. Throughout the chapter, we will use Moroccan to refer to people originating from Morocco's geographical area and only make ethnic distinctions when relevant.",
+      "latest_edited_text": "<{body_text}> People from Morocco in the Netherlands are generally referred to as Moroccans or Moroccan Dutch, etc. However, people from Morocco may prefer to be referred to in other ways. For instance, people from the Berber<[sup]><[/sup]> minority may choose to be referred to as Amazigh or Moroccan Berber. Throughout the chapter, we will use Moroccan to refer to people originating from Morocco's geographical area and only make ethnic distinctions when relevant."
+    },
+    {
+      "paragraph_number": 11,
+      "word_native_para_id": "73EC5456",
+      "original_text_no_markers": "Merkel's cells demonstrated an unusual response to Valium (diazepam), especially in white subjects compared to black subjects who recieved apples, pears and oranges. The Wassermann's test was also administered, alongside a Foley's catheter check. This phenomena is extremely important for understanding the disease's progression. Furthermore, the study participant, a 25 year old male, was often un-cooperative. In 1950 Doctor Smith first noted these observations.",
+      "input_with_markers": "Merkel's cells demonstrated an unusual response to Valium (diazepam), especially in white subjects compared to black subjects who recieved apples, pears and oranges. The Wassermann's test was also administered, alongside a Foley's catheter check. This phenomena is extremely important for understanding the disease's progression. Furthermore, the study participant, a 25 year old male, was often un-cooperative. In 1950 Doctor Smith first noted these observations.",
+      "latest_edited_text": "<{body_text}> Merkel cells demonstrated an unusual response to diazepam (Valium), especially in White subjects compared with Black subjects who received apples, pears, and oranges. The Wassermann test was also administered, alongside a Foley catheter check. This phenomenon is extremely important for understanding the disease's progression. Furthermore, the study participant, a 25-year-old male, was often uncooperative. In 1950 Doctor Smith first noted these observations."
+    }
+  ]
+}

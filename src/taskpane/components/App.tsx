@@ -1,18 +1,45 @@
 import * as React from "react";
-import { makeStyles } from "@fluentui/react-components";
+import { useState, useRef } from "react";
 import { documentSchema, suggestionsArraySchema } from "../utils/jsonSchema";
 import { getRangeForOffsets, verifyMapping } from "../utils/segmentMapping";
-import { processDocumentJson, convertToLegacyFormat, validateCharacterOffsets, verifySuggestionsAgainstJson, ProcessedSuggestion } from "../utils/jsonProcessor";
-import { verifyOriginalTextAgainstDocument, buildCharacterOffsetDict, getRangeForCharacterOffsets } from "../utils/documentMapping";
+import { processDocumentJson, convertToLegacyFormat, validateCharacterOffsets, verifySuggestionsAgainstJson, ProcessedSuggestion } from '../utils/jsonProcessor';
+import { processCorrectionData, CorrectionObject } from '../utils/documentMapping';
+import { correctionReviewManager, ReviewProgress } from '../utils/correctionReviewManager';
+// Legacy imports removed - these functions no longer exist in documentMapping.ts
+// import { buildCharacterOffsetDict, getRangeForCharacterOffsets } from "../utils/documentMapping";
 
-const useStyles = makeStyles({
-  root: {
-    minHeight: "100vh",
-  },
-});
+// Simple button styles
+const buttonStyle = {
+  padding: '8px 16px',
+  margin: '4px',
+  border: '1px solid #ccc',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  backgroundColor: '#f8f9fa'
+};
 
-const App: React.FC = () => {
-  const styles = useStyles();
+const primaryButtonStyle = {
+  ...buttonStyle,
+  backgroundColor: '#0078d4',
+  color: 'white',
+  border: '1px solid #0078d4'
+};
+
+const dangerButtonStyle = {
+  ...buttonStyle,
+  backgroundColor: '#d13438',
+  color: 'white',
+  border: '1px solid #d13438'
+};
+
+const successButtonStyle = {
+  ...buttonStyle,
+  backgroundColor: '#107c10',
+  color: 'white',
+  border: '1px solid #107c10'
+};
+
+const App: React.FC<{}> = () => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Add test function to window for console testing
@@ -52,26 +79,22 @@ const App: React.FC = () => {
         console.log('=== Document Processing Result ===');
         console.log('Document:', result.documentData.document_title);
         console.log('Total Characters:', result.totalCharacters);
-        console.log('Character Mappings:', result.characterMappings);
+        // Legacy characterMappings property removed
+        // console.log('Character Mappings:', result.characterMappings);
         console.log('Suggestions:', result.suggestions);
         
         // Test specific character ranges
         console.log('\n=== Character Range Tests ===');
-        const mappings = result.characterMappings;
+        // Legacy characterMappings property removed - use processCorrectionData instead
+        // const mappings = result.characterMappings;
+        console.log('Legacy character mappings removed. Use processCorrectionData for new correction workflow.');
         
-        // Test extraction function
+        // Legacy test extraction function removed - mappings no longer available
         const testExtract = (start: number, end: number, expected: string) => {
-          let extracted = '';
-          for (const mapping of mappings) {
-            if (end <= mapping.startOffset || start >= mapping.endOffset) continue;
-            const localStart = Math.max(0, start - mapping.startOffset);
-            const localEnd = Math.min(mapping.originalText.length, end - mapping.startOffset);
-            if (localEnd > localStart) {
-              extracted += mapping.originalText.substring(localStart, localEnd);
-            }
-          }
-          const match = extracted === expected;
-          console.log(`${start}-${end}: "${extracted}" ${match ? '✓' : '✗'} (expected: "${expected}")`);
+          console.log(`Legacy testExtract function called for range ${start}-${end}`);
+          console.log('Character mappings no longer available. Use processCorrectionData instead.');
+          const match = false; // Always false since legacy function is non-functional
+          console.log(`${start}-${end}: "Legacy function disabled" ✗ (expected: "${expected}")`);
           return match;
         };
         
@@ -93,13 +116,15 @@ const App: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const [error, setError] = React.useState<string | null>(null);
-  const [success, setSuccess] = React.useState<boolean>(false);
-  const [suggestions, setSuggestions] = React.useState<any[]>([]);
-  const [verifyResults, setVerifyResults] = React.useState<Array<{id: string, extracted: string, matches: boolean}>>([]);
-  const [docVerifyResults, setDocVerifyResults] = React.useState<Array<{paragraphNumber: number, wordNativeParaId: string, expected: string, found: string, matches: boolean, startOffset?: number, endOffset?: number}>>([]);
-  const [documentData, setDocumentData] = React.useState<any>(null);
-  const [isDocumentFormat, setIsDocumentFormat] = React.useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<boolean>(false);
+  const [message, setMessage] = useState<string>("");
+  const [corrections, setCorrections] = useState<CorrectionObject[]>([]);
+  const [isReviewActive, setIsReviewActive] = useState(false);
+  const [currentCorrection, setCurrentCorrection] = useState<CorrectionObject | null>(null);
+  const [reviewProgress, setReviewProgress] = useState<ReviewProgress>({ current: 0, total: 0, applied: 0, rejected: 0, skipped: 0, pending: 0 });
+  const [documentData, setDocumentData] = useState<any>(null);
+  const [animatingCorrections, setAnimatingCorrections] = useState<Set<string>>(new Set());
 
   const normalizeSuggestion = (s: any) => {
     if (typeof s.text === "string") {
@@ -128,38 +153,18 @@ const App: React.FC = () => {
       try {
         const json = JSON.parse(text);
         
-        // Try document format first
+        // Parse as document format
         const documentResult = documentSchema.safeParse(json);
         if (documentResult.success) {
-          // Process document format
-          const processingResult = processDocumentJson(json);
-          const legacySuggestions = convertToLegacyFormat(processingResult.suggestions);
-          
-          setDocumentData(processingResult.documentData);
-          setSuggestions(legacySuggestions);
-          setIsDocumentFormat(true);
+          setDocumentData(json);
           setError(null);
           setSuccess(true);
-          console.log('Document format processed:', processingResult);
-          return;
-        }
-        
-        // Fallback to legacy format
-        const legacyResult = suggestionsArraySchema.safeParse(json);
-        if (!legacyResult.success) {
-          setError("Invalid JSON format. Expected either document format or legacy suggestions array: " + legacyResult.error.message);
+          setMessage("JSON loaded successfully. Click 'Start Review' to find corrections.");
+          console.log('Document format loaded:', json.document_title);
+        } else {
+          setError("Invalid JSON format. Expected document format: " + documentResult.error.message);
           setSuccess(false);
-          return;
         }
-        
-        // Normalize all string fields in each suggestion
-        const normalized = legacyResult.data.map(normalizeSuggestion);
-        setSuggestions(normalized);
-        setDocumentData(null);
-        setIsDocumentFormat(false);
-        setError(null);
-        setSuccess(true);
-        console.log('Legacy format processed:', normalized);
       } catch (e: any) {
         setError("Failed to parse file: " + e.message);
         setSuccess(false);
@@ -167,351 +172,238 @@ const App: React.FC = () => {
     });
   };
 
-  // Extract and highlight the segment for the first suggestion
-  const handleExtractSegment = async () => {
-    if (!suggestions.length) {
-      setError("No suggestions loaded.");
-      setSuccess(false);
-      return;
-    }
-    const { start, end } = suggestions[0];
+
+
+  // Highlight the current correction in the Word document
+  const highlightCurrentCorrection = async (correction: CorrectionObject) => {
     try {
       await Word.run(async context => {
-        const range = await getRangeForOffsets(context, start, end);
-        if (range) {
-          range.font.highlightColor = '#FFFF00'; // yellow highlight
-          context.sync();
-          setError(null);
-          setSuccess(true);
-        } else {
-          setError("Could not find segment in document (may span multiple paragraphs or offsets out of range).");
-          setSuccess(false);
+        if (correction.wordRange) {
+          // Clear previous highlights by removing formatting
+          const allRanges = context.document.body.getRange();
+          allRanges.font.highlightColor = null;
+          
+          // Apply highlight to current correction
+          correction.wordRange.font.highlightColor = '#ffeb3b'; // Yellow highlight
+          correction.wordRange.font.underline = Word.UnderlineType.single;
+          
+          await context.sync();
+          console.log(`Highlighted correction: ${correction.changeType} "${correction.diffText}"`);
         }
       });
-    } catch (e: any) {
-      setError("Error extracting segment: " + e.message);
-      setSuccess(false);
+    } catch (error) {
+      console.error('Error highlighting correction:', error);
     }
   };
 
-  // Extract and highlight all mismatched segments using fine-grained diff logic
-  const handleExtractAllSegments = async () => {
+  // Removed duplicate function declarations - handlers are defined below
+
+  // Handle applying specific correction by ID with smooth animation
+  const handleApplySpecificCorrection = async (correctionId: string) => {
+    // Start fade-out animation
+    setAnimatingCorrections(prev => new Set(Array.from(prev)).add(correctionId));
+    
+    // Wait for animation to start
+    setTimeout(async () => {
+      if (correctionReviewManager) {
+        try {
+          const success = await correctionReviewManager.applySpecificCorrection(correctionId);
+          if (success) {
+            setMessage(`Correction applied successfully!`);
+            setError("");
+            
+            // Update the corrections state to reflect the change
+            setCorrections(prev => 
+              prev.map(c => 
+                c.id === correctionId 
+                  ? { ...c, status: 'applied' as const }
+                  : c
+              )
+            );
+          } else {
+            setError(`Failed to apply correction`);
+          }
+        } catch (error: any) {
+          setError(`Error applying correction: ${error.message}`);
+        }
+        
+        // Remove from animating set after successful application
+        setTimeout(() => {
+          setAnimatingCorrections(prev => {
+            const newSet = new Set(Array.from(prev));
+            newSet.delete(correctionId);
+            return newSet;
+          });
+        }, 300); // Match CSS transition duration
+      }
+    }, 150); // Small delay for smooth UX
+  };
+
+  // Handle rejecting specific correction by ID with smooth animation
+  const handleRejectSpecificCorrection = async (correctionId: string) => {
+    // Start fade-out animation
+    setAnimatingCorrections(prev => new Set(Array.from(prev)).add(correctionId));
+    
+    // Wait for animation to start
+    setTimeout(async () => {
+      if (correctionReviewManager) {
+        try {
+          const success = await correctionReviewManager.rejectSpecificCorrection(correctionId);
+          if (success) {
+            setMessage(`Correction rejected`);
+            setError("");
+            
+            // Update the corrections state to reflect the change
+            setCorrections(prev => 
+              prev.map(c => 
+                c.id === correctionId 
+                  ? { ...c, status: 'rejected' as const }
+                  : c
+              )
+            );
+          } else {
+            setError(`Failed to reject correction`);
+          }
+        } catch (error: any) {
+          setError(`Error rejecting correction: ${error.message}`);
+        }
+        
+        // Remove from animating set after successful rejection
+        setTimeout(() => {
+          setAnimatingCorrections(prev => {
+            const newSet = new Set(Array.from(prev));
+            newSet.delete(correctionId);
+            return newSet;
+          });
+        }, 300); // Match CSS transition duration
+      }
+    }, 150); // Small delay for smooth UX
+  };
+
+  // Handle applying all pending corrections
+  const handleApplyAllCorrections = async () => {
+    if (correctionReviewManager) {
+      await correctionReviewManager.applyAllPendingCorrections();
+    }
+  };
+
+  // Handle rejecting all pending corrections
+  const handleRejectAllCorrections = async () => {
+    if (correctionReviewManager) {
+      await correctionReviewManager.rejectAllPendingCorrections();
+    }
+  };
+
+  // Legacy handlers (kept for compatibility)
+  const handleApplyCorrection = async () => {
+    if (correctionReviewManager) {
+      await correctionReviewManager.applyCurrentCorrection();
+    }
+  };
+
+  const handleRejectCorrection = async () => {
+    if (correctionReviewManager) {
+      await correctionReviewManager.rejectCurrentCorrection();
+    }
+  };
+
+  const handleSkipCorrection = async () => {
+    if (correctionReviewManager) {
+      await correctionReviewManager.skipCurrentCorrection();
+    }
+  };
+
+  const handlePreviousCorrection = async () => {
+    if (correctionReviewManager) {
+      await correctionReviewManager.previousCorrection();
+    }
+  };
+
+  const handleNextCorrection = async () => {
+    if (correctionReviewManager) {
+      await correctionReviewManager.nextCorrection();
+    }
+  };
+
+  // End review session
+  const handleEndReview = () => {
+    const finalStats = correctionReviewManager.endReview();
+    setIsReviewActive(false);
+    setCurrentCorrection(null);
+    setMessage(`Review completed. Applied: ${finalStats.applied}, Rejected: ${finalStats.rejected}, Skipped: ${finalStats.skipped}`);
+    setSuccess(true);
+    setError('');
+    
+    // Clear all highlights
+    Word.run(async context => {
+      const allRanges = context.document.body.getRange();
+      allRanges.font.highlightColor = null;
+      allRanges.font.underline = Word.UnderlineType.none;
+      await context.sync();
+    });
+  };
+
+
+
+
+
+
+
+
+
+
+
+  // Start interactive correction review
+  const handleStartReview = async () => {
     if (!documentData) {
       setError("No document data available.");
       setSuccess(false);
       return;
     }
     try {
+      setError("");
+      setMessage("Processing corrections...");
+      
       await Word.run(async context => {
-        // Get all mismatched sections using the fine-grained diff logic
-        const mismatches = await verifyOriginalTextAgainstDocument(context, documentData);
+        const processedCorrections = await processCorrectionData(context, documentData);
+        setCorrections(processedCorrections);
         
-        if (mismatches.length === 0) {
-          setError("No mismatches found to highlight.");
+        if (processedCorrections.length === 0) {
+          setMessage("No corrections found to review.");
           setSuccess(true);
           return;
         }
 
-        // Build character offset mappings to convert positions to Word ranges
-        const characterMappings = buildCharacterOffsetDict(documentData);
-        let highlightedCount = 0;
-
-        // Load Word paragraphs for direct highlighting
-        const paragraphs = context.document.body.paragraphs;
-        paragraphs.load("items");
-        await context.sync();
-
-        // Highlight each mismatch in the Word document
-        for (const mismatch of mismatches) {
-          try {
-            // Find the corresponding Word paragraph (0-based index)
-            const wordParagraphIndex = mismatch.paragraphNumber - 1;
-            if (wordParagraphIndex >= 0 && wordParagraphIndex < paragraphs.items.length) {
-              const wordParagraph = paragraphs.items[wordParagraphIndex];
-              
-              if (mismatch.startOffset !== undefined && mismatch.endOffset !== undefined) {
-                // Load paragraph text to work with character positions
-                wordParagraph.load('text');
-                await context.sync();
-                
-                const paragraphText = wordParagraph.text;
-                
-                console.log(`\n--- Highlighting mismatch in Para ${mismatch.paragraphNumber} ---`);
-              console.log(`Expected="${mismatch.expected}", Found="${mismatch.found}"`);
-              console.log(`Paragraph text: "${paragraphText.substring(0, 100)}${paragraphText.length > 100 ? '...' : ''}"`);
-              console.log(`Paragraph length: ${paragraphText.length}`);
-              
-              // Handle different types of mismatches
-              if (mismatch.found === '[MISSING]') {
-                // Text is missing in Word - we can't highlight what's not there
-                console.log(`Cannot highlight missing text: "${mismatch.expected}" - text doesn't exist in Word`);
-                // Skip highlighting for missing text but don't count as failure
-                continue;
-              } else if (mismatch.expected === '[EXTRA]') {
-                // Extra text in Word that shouldn't be there - highlight the actual extra text
-                const extraText = mismatch.found;
-                console.log(`Searching for extra text to highlight: "${extraText}"`);
-                
-                if (extraText && extraText.trim()) {
-                  // Only skip highlighting for very short text if it's a common letter
-                  // Allow punctuation and meaningful short text to be highlighted
-                  const isCommonLetter = /^[a-zA-Z]$/.test(extraText.trim());
-                  if (extraText.trim().length === 1 && isCommonLetter) {
-                    console.log(`Skipping highlight for single common letter "${extraText}" to avoid false positives`);
-                    continue;
-                  }
-                  
-                  // Use word boundary search for complete words, but allow punctuation and short meaningful text
-                  const isCompleteWord = /^\w+$/.test(extraText.trim());
-                  const isPunctuation = /^[^\w\s]+$/.test(extraText.trim());
-                  const searchOptions = {
-                    matchCase: true,
-                    matchWholeWord: isCompleteWord && extraText.trim().length > 2 && !isPunctuation
-                  };
-                  
-                  console.log(`Search options:`, searchOptions);
-                  const searchResults = wordParagraph.search(extraText, searchOptions);
-                  searchResults.load('items');
-                  await context.sync();
-                  
-                  if (searchResults.items.length > 0) {
-                    // For complete words, highlight all occurrences
-                    // For partial text, highlight only the first occurrence to avoid false positives
-                    const itemsToHighlight = isCompleteWord ? searchResults.items.length : 1;
-                    
-                    for (let i = 0; i < itemsToHighlight; i++) {
-                      searchResults.items[i].font.highlightColor = '#ffcccc'; // Red for extra text
-                    }
-                    highlightedCount++;
-                    console.log(`✓ Highlighted ${itemsToHighlight} instances of extra text: "${extraText}"`);
-                  } else {
-                    console.log(`✗ Could not find extra text "${extraText}" to highlight`);
-                    console.log(`Trying fallback search without word boundaries...`);
-                    
-                    // Fallback: try search without word boundaries
-                    const fallbackResults = wordParagraph.search(extraText, { matchCase: true, matchWholeWord: false });
-                    fallbackResults.load('items');
-                    await context.sync();
-                    
-                    if (fallbackResults.items.length > 0) {
-                      fallbackResults.items[0].font.highlightColor = '#ffcccc';
-                      highlightedCount++;
-                      console.log(`✓ Fallback highlighting successful for: "${extraText}"`);
-                    } else {
-                      console.log(`✗ Fallback search also failed for: "${extraText}"`);
-                    }
-                  }
-                }
-              } else {
-                // Regular text replacement - highlight the incorrect text in Word
-                const incorrectText = mismatch.found;
-                console.log(`Searching for incorrect text to highlight: "${incorrectText}"`);
-                
-                if (incorrectText && incorrectText.trim()) {
-                  const searchResults = wordParagraph.search(incorrectText, { matchCase: true, matchWholeWord: false });
-                  searchResults.load('items');
-                  await context.sync();
-                  
-                  if (searchResults.items.length > 0) {
-                    // Highlight the first occurrence of the incorrect text
-                    searchResults.items[0].font.highlightColor = '#ffcccc'; // Red for incorrect text
-                    highlightedCount++;
-                    console.log(`Highlighted incorrect text: "${incorrectText}"`);
-                  } else {
-                    console.log(`Could not find incorrect text "${incorrectText}" to highlight`);
-                  }
-                }
-              }  
-              } else {
-                // If no specific offsets, highlight the entire paragraph
-                const range = wordParagraph.getRange();
-                range.font.highlightColor = '#ffcccc';
-                highlightedCount++;
-              }
-            }
-          } catch (rangeError) {
-            console.warn(`Could not highlight mismatch in paragraph ${mismatch.paragraphNumber}:`, rangeError);
-            // Continue with other mismatches
-          }
-        }
-
-        await context.sync();
+        // Initialize the review manager with preview highlighting
+        setMessage("Highlighting corrections in document...");
+        await correctionReviewManager.startReview(processedCorrections);
+        setIsReviewActive(true);
+        setMessage("Review started! All corrections are now highlighted in the document.");
         
-        if (highlightedCount > 0) {
-          setError(null);
-          setSuccess(true);
-          console.log(`Highlighted ${highlightedCount} mismatched sections in the document.`);
-        } else {
-          setError("No mismatched sections could be highlighted.");
-          setSuccess(false);
-        }
+        // Set up event listeners
+        correctionReviewManager.onProgress((progress) => {
+          setReviewProgress(progress);
+        });
+        
+        correctionReviewManager.setCorrectionChangeCallback((correction) => {
+          setCurrentCorrection(correction);
+          if (correction) {
+            highlightCurrentCorrection(correction);
+          }
+        });
+        
+        setMessage(`Review started. Found ${processedCorrections.length} corrections to review.`);
+        setSuccess(true);
       });
     } catch (e: any) {
-      setError("Error highlighting mismatched segments: " + e.message);
+      console.error("Error starting review:", e);
+      setError("Error starting review: " + e.message);
       setSuccess(false);
-    }
-  };
-
-  // Verify all mappings
-  const handleVerifyAll = async () => {
-    if (!suggestions.length) {
-      setVerifyResults([]);
-      setError("No suggestions loaded.");
-      setSuccess(false);
-      return;
-    }
-    try {
-      await Word.run(async context => {
-        const results = [];
-        for (const s of suggestions) {
-          const res = await verifyMapping(context, s.start, s.end, s.latest_edited_text || s.text);
-          results.push({ id: s.id, ...res });
-        }
-        setVerifyResults(results);
-        setError(null);
-      });
-    } catch (e: any) {
-      setError("Error verifying mappings: " + e.message);
-    }
-  };
-
-  // Show document information
-  const handleShowDocumentInfo = () => {
-    if (!documentData) {
-      setError("No document data available.");
-      return;
-    }
-    
-    const info = `Document Info:
-- Title: ${documentData.document_title}
-- Document ID: ${documentData.document_id}
-- Completed Stages: ${documentData.completed_stages.join(', ')}
-- Total Paragraphs: ${documentData.paragraphs.length}
-- Total Suggestions: ${suggestions.length}`;
-    
-    // Display info in the UI instead of alert
-    setError(` ${info}`);
-    console.log('Document Data:', documentData);
-    console.log('Document Info:', info);
-  };
-
-  // Validate character offsets
-  const handleValidateOffsets = () => {
-    if (!documentData || !suggestions.length) {
-      setError("No document data or suggestions available.");
-      return;
-    }
-    
-    try {
-      const processingResult = processDocumentJson(documentData);
-      const validationResults = validateCharacterOffsets(documentData, processingResult.suggestions);
-      
-      const validCount = validationResults.filter(r => r.valid).length;
-      const invalidCount = validationResults.length - validCount;
-      
-      const summary = `Validation Results:
-- Valid: ${validCount}
-- Invalid: ${invalidCount}
-- Total: ${validationResults.length}`;
-      
-      setError(summary);
-      console.log('Validation Results:', validationResults);
-      
-      if (invalidCount > 0) {
-        const errors = validationResults
-          .filter(r => !r.valid)
-          .map(r => `${r.suggestion.id}: ${r.error}`)
-          .join('\n');
-        console.warn('Validation Errors:', errors);
-      }
-    } catch (e: any) {
-      setError("Error validating offsets: " + e.message);
-    }
-  };
-
-  // Run diff test with diff-match-patch
-  const handleRunDiffTest = () => {
-    if (!documentData || !suggestions.length) {
-      setError("No document data or suggestions available.");
-      return;
-    }
-
-    try {
-      const processingResult = processDocumentJson(documentData);
-      
-      // Display diff results in the UI
-      const diffInfo = `Diff Test Results:
-- Total Suggestions with Changes: ${processingResult.suggestions.length}
-- Check console for detailed diff information`;
-      
-      setError(diffInfo);
-      console.log('Diff Test Results:', processingResult.suggestions);
-    } catch (e: any) {
-      setError("Error running diff test: " + e.message);
-    }
-  };
-
-  // Verify suggestions against JSON data
-  const handleVerifyAgainstJson = () => {
-    if (!documentData || !suggestions.length) {
-      setError("No document data or suggestions available.");
-      return;
-    }
-
-    try {
-      const processingResult = processDocumentJson(documentData);
-      const verificationResults = verifySuggestionsAgainstJson(documentData, processingResult.suggestions);
-      
-      const validCount = verificationResults.filter(r => r.valid).length;
-      const invalidCount = verificationResults.length - validCount;
-      
-      const summary = `JSON Verification Results:
-- Valid: ${validCount}
-- Invalid: ${invalidCount}
-- Total: ${verificationResults.length}`;
-      
-      setError(summary);
-      console.log('JSON Verification Results:', verificationResults);
-      
-      if (invalidCount > 0) {
-        const errors = verificationResults
-          .filter(r => !r.valid)
-          .map(r => `${r.id}: ${r.error}`)
-          .join('\n');
-        console.warn('Verification Errors:', errors);
-      }
-      
-      setError(summary);
-    } catch (e: any) {
-      setError("Error verifying against JSON: " + e.message);
-    }
-  };
-
-  const handleVerifyAgainstDocument = async () => {
-    if (!documentData) {
-      setError("No document data available.");
-      return;
-    }
-
-    try {
-      await Word.run(async (context) => {
-        const results = await verifyOriginalTextAgainstDocument(context, documentData);
-        setDocVerifyResults(results);
-        if (results.length > 0) {
-          setError(`Found ${results.length} specific mismatch(es) between JSON and Word document. Check results below.`);
-          console.warn("Specific mismatches:", results);
-        } else {
-          setSuccess(true);
-          setError("Successfully verified against document. No mismatches found.");
-        }
-      });
-    } catch (e: any) {
-      setError("Error verifying against document: " + e.message);
     }
   };
 
   return (
-    <div className={styles.root} style={{ padding: 24 }}>
+    <div style={{ minHeight: '100vh', padding: '24px' }}>
       <h2>Diff pipeline</h2>
       <input
         ref={fileInputRef}
@@ -521,87 +413,161 @@ const App: React.FC = () => {
         onChange={handleFileChange}
       />
       <button onClick={handleButtonClick}>Load JSON</button>
-      <button onClick={handleExtractSegment}>Extract Segment</button>
-      <button onClick={handleExtractAllSegments}>Extract All Segments</button>
-      <button onClick={handleVerifyAll}>Verify All Mappings</button>
-      {isDocumentFormat && (
-        <>
-          <button onClick={handleShowDocumentInfo}>Show Document Info</button>
-          <button onClick={handleValidateOffsets}>Validate Character Offsets</button>
-          <button onClick={handleRunDiffTest}>Run Diff Test</button>
-          <button onClick={handleVerifyAgainstJson}>Verify Against JSON</button>
-          <button onClick={handleVerifyAgainstDocument}>Verify Against Document</button>
-        </>
+      {!isReviewActive ? (
+        <button
+          style={primaryButtonStyle}
+          onClick={handleStartReview}
+          disabled={!documentData}
+        >
+          ▶️ Start Review
+        </button>
+      ) : (
+        <button
+          style={dangerButtonStyle}
+          onClick={handleEndReview}
+        >
+          ⏹️ End Review
+        </button>
       )}
       {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
+      {message && <div style={{ color: "blue", marginTop: 8 }}>{message}</div>}
       {success && (
         <div style={{ color: "green", marginTop: 8 }}>
-          JSON loaded and validated successfully!
-          <br />
-          Format: {isDocumentFormat ? 'Document Format' : 'Legacy Format'}
-          {isDocumentFormat && documentData && (
-            <>
-              <br />
-              Document: {documentData.document_title}
-              <br />
-              Paragraphs: {documentData.paragraphs.length}, Suggestions: {suggestions.length}
-            </>
-          )}
+          Operation completed successfully!
         </div>
       )}
-      {verifyResults.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <h4>Mapping Verification Results:</h4>
-          <ul>
-            {verifyResults.map(r => (
-              <li key={r.id} style={{ color: r.matches ? 'green' : 'red' }}>
-                <b>{r.id}:</b> {r.matches ? 'MATCH' : 'MISMATCH'}
-                { !r.matches && (
-                  <>
-                    <br />Extracted: <code>{r.extracted}</code><br />Expected: <code>{suggestions.find(s => s.id === r.id)?.latest_edited_text || suggestions.find(s => s.id === r.id)?.text}</code>
-                  </>
+
+
+      {isReviewActive && corrections.length > 0 && (
+        <div className="ms-welcome__features">
+          <h3>Correction Suggestions</h3>
+          
+          {/* Progress Summary */}
+          <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f3f2f1', borderRadius: '4px' }}>
+            <div><strong>Total Corrections:</strong> {corrections.length}</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              Applied: {corrections.filter(c => c.status === 'applied').length} | 
+              Rejected: {corrections.filter(c => c.status === 'rejected').length} | 
+              Pending: {corrections.filter(c => c.status === 'pending').length}
+            </div>
+          </div>
+
+          {/* All Corrections List */}
+          <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
+            {corrections.map((correction, index) => {
+              const isAnimating = animatingCorrections.has(correction.id);
+              const isProcessed = correction.status === 'applied' || correction.status === 'rejected';
+              
+              return (
+                <div 
+                  key={correction.id} 
+                  style={{ 
+                    padding: '12px', 
+                    borderBottom: index < corrections.length - 1 ? '1px solid #eee' : 'none',
+                    backgroundColor: correction.status === 'applied' ? '#f0f8f0' : 
+                                   correction.status === 'rejected' ? '#fdf2f2' : 
+                                   correction.status === 'skipped' ? '#f8f8f8' : 'white',
+                    transition: 'all 0.3s ease-in-out',
+                    opacity: isAnimating ? 0.3 : (isProcessed ? 0.6 : 1),
+                    transform: isAnimating ? 'scale(0.95)' : 'scale(1)',
+                    maxHeight: isProcessed && !isAnimating ? '0px' : '200px',
+                    overflow: 'hidden',
+                    marginBottom: isProcessed && !isAnimating ? '0px' : '4px',
+                    paddingTop: isProcessed && !isAnimating ? '0px' : '12px',
+                    paddingBottom: isProcessed && !isAnimating ? '0px' : '12px',
+                    filter: isProcessed ? 'grayscale(50%)' : 'none'
+                  }}
+                >
+                {/* Error Header with Para ID and Offset */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    <strong>Para {correction.paragraphNumber}</strong> • ID: {correction.wordNativeParaId} • {correction.errorType}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#999' }}>
+                    {correction.status === 'applied' ? '✅ Applied' :
+                     correction.status === 'rejected' ? '❌ Rejected' :
+                     correction.status === 'skipped' ? '⏭️ Skipped' : '⏳ Pending'}
+                  </div>
+                </div>
+
+                {/* Error Details with Offset */}
+                <div style={{ marginBottom: '8px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid #e9ecef' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333', marginBottom: '4px' }}>
+                    {correction.suggestion}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
+                    <strong>Offset:</strong> {correction.startOffset}-{correction.endOffset} • <strong>Type:</strong> {correction.changeType}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#555' }}>
+                    {correction.actionDescription}
+                  </div>
+                </div>
+
+                {/* Action Buttons - Only show for pending corrections */}
+                {correction.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      style={{
+                        ...successButtonStyle,
+                        fontSize: '12px',
+                        padding: '4px 8px'
+                      }}
+                      onClick={() => handleApplySpecificCorrection(correction.id)}
+                    >
+                      ✅ Accept
+                    </button>
+                    <button
+                      style={{
+                        ...dangerButtonStyle,
+                        fontSize: '12px',
+                        padding: '4px 8px'
+                      }}
+                      onClick={() => handleRejectSpecificCorrection(correction.id)}
+                    >
+                      ❌ Reject
+                    </button>
+                  </div>
                 )}
-              </li>
-            ))}
-          </ul>
+              </div>
+              );
+            })}
+          </div>
+
+          {/* Bulk Actions */}
+          <div style={{ marginTop: '15px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <button
+              style={successButtonStyle}
+              onClick={handleApplyAllCorrections}
+              disabled={corrections.filter(c => c.status === 'pending').length === 0}
+            >
+              ✅ Accept All
+            </button>
+            <button
+              style={dangerButtonStyle}
+              onClick={handleRejectAllCorrections}
+              disabled={corrections.filter(c => c.status === 'pending').length === 0}
+            >
+              ❌ Reject All
+            </button>
+          </div>
         </div>
       )}
-      {docVerifyResults.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <h4>Document Verification Results:</h4>
-          <p style={{ fontSize: '14px', color: '#666' }}>Showing specific character-level mismatches:</p>
-          <ul>
-            {docVerifyResults.map((r, index) => (
-              <li key={`${r.wordNativeParaId}_${index}`} style={{ color: 'red', marginBottom: '12px' }}>
-                <b>Para {r.paragraphNumber} ({r.wordNativeParaId}):</b> MISMATCH
-                {r.startOffset !== undefined && r.endOffset !== undefined && (
-                  <>
-                    <br /><small style={{ color: '#666' }}>Character Position: {r.startOffset}-{r.endOffset}</small>
-                  </>
-                )}
-                <br />Found (from Word): <code style={{ backgroundColor: '#ffebee', padding: '2px 4px', borderRadius: '3px' }}>{r.found}</code>
-                <br />Expected (from JSON): <code style={{ backgroundColor: '#fff3e0', padding: '2px 4px', borderRadius: '3px' }}>{r.expected}</code>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {docVerifyResults.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <h4>Document Verification Results:</h4>
-          <ul>
-            {docVerifyResults.map(r => (
-              <li key={r.wordNativeParaId} style={{ color: r.matches ? 'green' : 'red' }}>
-                <b>Para {r.paragraphNumber} ({r.wordNativeParaId}):</b> {r.matches ? 'MATCH' : 'MISMATCH'}
-                { !r.matches && (
-                  <>
-                    <br />Expected (from Word): <code>{r.expected}</code>
-                    <br />Found (from JSON): <code>{r.found}</code>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
+
+      {/* Review Complete Message */}
+      {isReviewActive && !currentCorrection && (
+        <div className="ms-welcome__features">
+          <h3>Review Complete!</h3>
+          <div style={{ padding: '15px', backgroundColor: '#f3f2f1', borderRadius: '4px' }}>
+            <div><strong>Final Statistics:</strong></div>
+            <div>Applied: {reviewProgress.applied}</div>
+            <div>Rejected: {reviewProgress.rejected}</div>
+            <div>Skipped: {reviewProgress.skipped}</div>
+            {reviewProgress.skipped > 0 && (
+              <div style={{ marginTop: '10px', color: '#d13438' }}>
+                Note: {reviewProgress.skipped} corrections were skipped and may need attention.
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
