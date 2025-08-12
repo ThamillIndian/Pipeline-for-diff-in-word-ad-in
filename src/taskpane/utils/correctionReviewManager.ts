@@ -589,62 +589,21 @@ export class CorrectionReviewManager {
             console.log(`⚠️ WARNING: Paragraph text mismatch!`);
             console.log(`   Normalized current: "${normalizedCurrent}"`);
             console.log(`   Normalized expected: "${normalizedOriginal}"`);
+            console.log(`   Proceeding with fallback paragraph replacement...`);
             
-            // Fallback to paragraph-level replacement for reliability
-            try {
-              console.log(`🔧 Falling back to paragraph-level replacement`);
-              const targetCorrectedText = correction.correctedText.trim();
-              const originalText = wordParagraph.text; // Save current text for potential rollback
-              
-              // Apply the correction by replacing the entire paragraph
-              wordParagraph.clear();
-              await context.sync();
-              wordParagraph.insertText(targetCorrectedText, Word.InsertLocation.start);
-              await context.sync();
-              
-              // Verify the paragraph content matches the expected corrected text
-              wordParagraph.load('text');
-              await context.sync();
-              
-              const updatedText = wordParagraph.text.trim().replace(/\s+/g, ' ');
-              const expectedText = targetCorrectedText.trim().replace(/\s+/g, ' ');
-              
-              if (updatedText !== expectedText) {
-                console.error(`❌ Fallback validation failed: Updated text does not match expected`);
-                console.log(`   Expected: "${expectedText}"`);
-                console.log(`   Actual:   "${updatedText}"`);
-                
-                // Revert changes by restoring original text
-                wordParagraph.clear();
-                await context.sync();
-                wordParagraph.insertText(originalText, Word.InsertLocation.start);
-                await context.sync();
-                
-                // Show error message to user
-                await Word.run(async () => {
-                  const dialogUrl = `about:blank?error=${encodeURIComponent(`Failed to apply correction to paragraph ${correction.paragraphNumber}. The content could not be updated correctly.`)}`;
-                  Office.context.ui.displayDialogAsync(dialogUrl, {
-                    height: 30,
-                    width: 50,
-                    promptBeforeOpen: false
-                  });
-                });
-                
-                throw new Error(`Failed to apply fallback correction to paragraph ${correction.paragraphNumber}.`);
-              }
-              
-              console.log(`✅ Fallback paragraph replacement and validation successful`);
-            } catch (fallbackError) {
-              console.error(`❌ Fallback paragraph replacement failed:`, fallbackError);
-              throw fallbackError; // Re-throw to be caught by outer try-catch
-            }
+            // Use fallback approach immediately if text doesn't match
+            const targetCorrectedText = correction.correctedText.trim();
+            wordParagraph.clear();
+            await context.sync();
+            
+            wordParagraph.insertText(targetCorrectedText, Word.InsertLocation.start);
+            await context.sync();
+            
+            console.log(`✅ Fallback paragraph replacement completed`);
           } else {
             // Apply correction at segment level for precise change tracking
             try {
               console.log(`🎯 Applying ${correction.changeType} correction: "${correction.diffText}" at offset ${correction.startOffset}-${correction.endOffset}`);
-              
-              // Save the original paragraph text for potential rollback
-              const originalText = wordParagraph.text;
               
               // Apply correction based on change type
               if (correction.changeType === 'deletion') {
@@ -655,43 +614,26 @@ export class CorrectionReviewManager {
                 await this.applyModificationCorrection(context, wordParagraph, correction);
               }
               
-              // Verify the paragraph content matches the expected corrected text
-              await context.sync();
-              wordParagraph.load('text');
-              await context.sync();
+              console.log(`✅ Successfully applied ${correction.changeType} correction at paragraph ${correction.paragraphNumber}`);
+            } catch (error) {
+              console.log(`❌ Error applying segment-level correction:`, error);
               
-              const updatedText = wordParagraph.text.trim().replace(/\s+/g, ' ');
-              const expectedText = correction.correctedText.trim().replace(/\s+/g, ' ');
-              
-              if (updatedText !== expectedText) {
-                console.error(`❌ Validation failed: Updated text does not match expected`);
-                console.log(`   Expected: "${expectedText}"`);
-                console.log(`   Actual:   "${updatedText}"`);
+              // Fallback to paragraph-level replacement for reliability
+              try {
+                console.log(`🔧 Falling back to paragraph-level replacement`);
+                const targetCorrectedText = correction.correctedText.trim();
                 
-                // Revert changes by restoring original text
                 wordParagraph.clear();
                 await context.sync();
-                wordParagraph.insertText(normalizedCurrent, Word.InsertLocation.start);
+                
+                wordParagraph.insertText(targetCorrectedText, Word.InsertLocation.start);
                 await context.sync();
                 
-                // Show error message to user
-                await Word.run(async () => {
-                  // Using Office.context.ui.displayDialogAsync for better error display
-                  const dialogUrl = `about:blank?error=${encodeURIComponent(`Failed to apply correction to paragraph ${correction.paragraphNumber}. The content could not be updated correctly.`)}`;
-                  Office.context.ui.displayDialogAsync(dialogUrl, {
-                    height: 30,
-                    width: 50,
-                    promptBeforeOpen: false
-                  });
-                });
-                
-                throw new Error(`Failed to apply correction to paragraph ${correction.paragraphNumber}. The content could not be updated correctly.`);
+                console.log(`✅ Fallback paragraph replacement successful`);
+              } catch (fallbackError) {
+                console.log(`❌ Fallback also failed:`, fallbackError);
+                throw fallbackError;
               }
-              
-              console.log(`✅ Successfully applied and validated ${correction.changeType} correction at paragraph ${correction.paragraphNumber}`);
-            } catch (fallbackError) {
-              console.log(`❌ Fallback also failed:`, fallbackError);
-              throw fallbackError;
             }
           }
         } else {
